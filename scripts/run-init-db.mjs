@@ -40,8 +40,8 @@ async function main() {
   const raw = readFileSync(join(__dirname, "init-db.sql"), "utf-8");
   const statements = raw
     .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"));
+    .map((s) => s.replace(/--[^\n]*/g, "").trim()) // strip SQL comments
+    .filter((s) => s.length > 0);
 
   for (const stmt of statements) {
     await sql.query(stmt + ";", []);
