@@ -1,0 +1,180 @@
+# SmartSign – Prompt Flow (Simulation)
+
+Flow of prompts used to build SmartSign. Each block is what you (the user) would type and send. Use in order: Explore first, then Plan, then Build.
+
+---
+
+## Phase 0: Explore
+
+**Prompt 1 — Send first**
+
+```
+I want to build a mini DocuSign with AI. Before we start, can you search for:
+
+- Document signing apps like DocuSign and HelloSign – what features do they typically have?
+- Next.js 14 + TypeScript + Tailwind for building something like this
+- PDF handling in React – react-pdf, pdf-lib, how to place signature fields
+- Free AI APIs for contract analysis – Groq, OpenAI, etc.
+- Email APIs for sending signing links – Resend, SendGrid
+- Storage options for an MVP – JSON files, SQLite, or cloud
+
+Summarize what you find and recommend a tech stack for the MVP.
+```
+
+---
+
+## Phase 1: Plan
+
+**Prompt 2 — Send second (after explore)**
+
+```
+Enter plan mode. I want you to design the project before we write any code.
+
+Design SmartSign – a mini DocuSign with AI. Plan:
+
+1. Project structure – Next.js 14 App Router, pages (dashboard, documents, new document wizard, signing page), API routes, data stores
+
+2. Core user flow – Upload PDF → Place signature fields → Add recipients → Send → Recipients sign in order
+
+3. Full feature list – PDF upload & viewer, signature field placement, signature drawing, embed signature into PDF, multiple recipients with signing order, email with signing links, document status engine (draft/sent/viewed/signed/completed/declined/expired), dashboard, audit trail, templates, reminders
+
+4. AI features – contract summary, chat with contract, AI field detection
+
+5. Implementation order – what to build first, dependencies between features
+
+6. Storage & API design – document model, template model, signing session model, key endpoints
+
+Output a clear plan. No code yet.
+```
+
+---
+
+## Phase 2: Build
+
+**Prompt 3**
+
+```
+Create a Next.js 14 project with TypeScript and Tailwind. Set up App Router, basic layout with sidebar and header, and NextAuth with credentials (admin / admin123). Add placeholder components for PDF upload, document viewer, and signer list. I need: upload PDF, display in viewer, click to place signature fields and store coordinates, multiple signers support, responsive UI.
+```
+
+---
+
+**Prompt 4**
+
+```
+Implement the PDF upload and viewer. I need a DocumentUploader – drag-and-drop or click to upload a PDF and pass the file to the parent. And a PdfViewerWithFields – display the PDF with react-pdf, and when the user clicks on it, record the (page, x, y) coordinates and store them as signature field positions. Wire both into the new document flow.
+```
+
+---
+
+**Prompt 5**
+
+```
+Implement signature drawing. Create a SignatureDrawing component where the user draws with the mouse, can save as PNG base64, and has a clear button. Use react-signature-canvas. Show it in the signing flow when the user needs to sign. Return the base64 PNG when they confirm.
+```
+
+---
+
+**Prompt 6**
+
+```
+Implement the backend to embed the signature into the PDF. Create POST /api/sign-pdf that accepts the PDF (or base64), signature PNG base64, and coordinates (page, x, y). Use pdf-lib to load the PDF, embed the PNG at those coordinates, and return the signed PDF. Add a "Download signed PDF" button on the signing page that calls this and triggers the download.
+```
+
+---
+
+**Prompt 7**
+
+```
+Add AI contract summary. Create POST /api/contract-summary that accepts contract text, sends it to Groq Llama 3, and returns JSON with summary, key clauses, and potential risks. Create a ContractSummary component that extracts text from the uploaded PDF, calls the API, and displays the result. Add it to the new document flow (e.g. in an AI Assistant tab).
+```
+
+---
+
+**Prompt 8**
+
+```
+Add chat with contract. Create POST /api/chat-contract that accepts contract text and a user question, sends to Groq, and returns an answer based on the contract content. Create a ChatWithContract component with input and message display. Add it to the AI Assistant tab.
+```
+
+---
+
+**Prompt 9**
+
+```
+Add AI field detection. Create POST /api/detect-signature-fields that accepts contract text, has the AI scan for "Signed by", "Signature", "Authorized representative", etc., and returns page hints where signature fields should go. Create an AiFieldDetection component that calls the API and lets the user add fields from the suggestions. Add it to the AI Assistant tab.
+```
+
+---
+
+**Prompt 10**
+
+```
+Implement the dashboard. Create a documents store (JSON file in data/) with id, name, recipients, status, createdAt, updatedAt. Create GET and POST /api/documents. Build a dashboard page that lists documents with status (draft, pending, signed), showing name, recipients, status, and created date. Add a way to save documents to the dashboard.
+```
+
+---
+
+**Prompt 11**
+
+```
+Implement multiple recipients and signing order. Extend the document model with recipientsDetail[] – name, email, role, signingOrder, signerId. Create a SignerManager component to add, edit, remove, and reorder signers. Enforce that signer 2 cannot sign until signer 1 has completed – sequential PDF signing. Create a SigningOrderGuard on the signing page to block signers who aren't next in order.
+```
+
+---
+
+**Prompt 12**
+
+```
+Implement email sending and signing links. Create a signing session store with token, documentId, signerId, pdfBase64, coordinates, expiresAt. Create POST /api/send-signing-invite that generates a unique token, stores the session, and sends an email via Resend with a link to /sign/[token]. Create the /sign/[token] page that loads the session, shows the PDF and signature drawing, and on sign calls the sign-pdf API and updates document status. Use Resend (free tier).
+```
+
+---
+
+**Prompt 13**
+
+```
+Implement audit trail. Create an audit-trail store for events per document – document_viewed, signature_added – with timestamp, IP, signer email. Create POST /api/audit to record events, GET /api/audit/[token] to return events for a session, and GET /api/certificate/[token] to generate a certificate of completion with signer emails, timestamps, IPs, and audit trail. On the signing page, record document_viewed on load and signature_added on sign. Show a certificate download link on success.
+```
+
+---
+
+**Prompt 14**
+
+```
+Implement the document status engine. Statuses: draft, sent, viewed, signed, completed, declined, expired. Update automatically: on send → sent; on sign page load → viewed; on sign → signed or completed if last signer; on decline → declined. Create PATCH /api/documents/[id] for status updates. On the dashboard, add status filter. On the document detail page, show status and add "Mark completed" and "Decline" buttons.
+```
+
+---
+
+**Prompt 15**
+
+```
+Implement templates. Create a templates store with name, documentName, pdfBase64, fields[], signerRoles[]. Create GET /api/templates, POST /api/templates, GET /api/templates/[id]. Create SaveAsTemplate component to save the current document layout, fields, and signer roles. Create TemplateSelector to list templates – "Use template" loads the PDF, fields, and signer roles (user edits name/email in SignerManager). Add a templates page.
+```
+
+---
+
+**Prompt 16**
+
+```
+Implement the reminder system. Add reminderCount and lastReminderAt to documents. Create POST /api/reminders/run to find documents not signed within X hours, send reminder emails, and update reminderCount. Create POST /api/reminders/[documentId] to send a reminder for one document. On the dashboard, show reminder count, "Send reminder" per doc, and a "Run reminders (24h)" button.
+```
+
+---
+
+**Prompt 17 (Optional)**
+
+```
+Implement certificate of completion. When a document is fully signed, generate a PDF certificate with signer emails, timestamps, IP addresses, document hash, and full audit trail. Provide a download link. (Can be merged with the audit trail work if easier.)
+```
+
+---
+
+## Flow Summary
+
+| Order | Phase  | Prompt |
+|-------|--------|--------|
+| 1     | Explore | Search & recommend tech stack |
+| 2     | Plan   | Design architecture (no code) |
+| 3–17  | Build  | Implement features in sequence |

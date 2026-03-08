@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Dark theme – colors: #060714 (deep dark), #1a93c8, #bddbed */
+:root {
+  --color-surface: #060714;
+  --color-surface-light: #0a0c1a;
+  --color-surface-card: #0d0f22;
+  --color-surface-border: #12152a;
+  --color-primary: #1a93c8;
+  --color-primary-hover: #2aa3d8;
+  --color-primary-active: #1582b3;
+  --color-primary-muted: rgba(26, 147, 200, 0.2);
+  --color-accent: #bddbed;
+  --color-accent-muted: #8bb8d4;
+}
+
+body {
+  @apply antialiased;
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+}
+
+/* Focus ring – primary (#1a93c8) */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Custom range slider */
+input[type="range"] {
+  accent-color: var(--color-primary);
+}
