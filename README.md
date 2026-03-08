@@ -73,7 +73,7 @@ SmartSign uses **Groq** (Llama 3.1) for AI-powered features:
 | **Language** | TypeScript |
 | **UI** | React 18, Tailwind CSS, shadcn/ui, Lucide icons |
 | **Auth** | NextAuth (credentials) |
-| **Storage** | JSON files (`data/`) |
+| **Storage** | PostgreSQL (Neon) or JSON files (`data/`) |
 | **Email** | Resend API |
 | **AI** | Groq (Llama 3.1) |
 | **PDF** | react-pdf, pdf-lib, react-signature-canvas |
@@ -108,6 +108,7 @@ npm install
 | `RESEND_API_KEY` | Resend API key for email |
 | `NEXTAUTH_SECRET` | NextAuth secret |
 | `NEXT_PUBLIC_APP_URL` | Base URL (e.g. `http://localhost:3000`) |
+| `POSTGRES_URL` | PostgreSQL connection string (optional; omit for local JSON storage) |
 
 ### Run
 
@@ -143,16 +144,19 @@ SmartSign uses simple username/password authentication for **demo purposes only*
    - `RESEND_API_KEY`
    - `NEXTAUTH_SECRET`
    - `NEXT_PUBLIC_APP_URL` – Your Vercel URL (e.g. `https://smartsign.vercel.app`)
+   - `POSTGRES_URL` – **Required for production.** Add a Postgres database (see below).
 
-2. **Storage** – **Important:** SmartSign stores data in JSON files (`data/`). Vercel’s serverless functions use a **read-only filesystem**, so this storage will not persist in production. Documents, templates, and signing sessions will be lost on each deploy or cold start.
+2. **Database** – SmartSign supports PostgreSQL for production. Without `POSTGRES_URL`, data is stored in JSON files, which **do not persist** on Vercel's serverless filesystem.’s serverless functions use a **read-only filesystem**, so this storage will not persist in production. Documents, templates, and signing sessions will be lost on each deploy or cold start.
 
-   For a production deployment, you need to replace file storage with a database, for example:
-   - [Vercel Postgres](https://vercel.com/storage/postgres)
-   - [Vercel KV](https://vercel.com/storage/kv)
-   - [Supabase](https://supabase.com)
-   - [PlanetScale](https://planetscale.com)
+   **Recommended:** Add [Neon](https://neon.tech) or [Vercel Postgres](https://vercel.com/storage/postgres) from the Vercel Marketplace. This sets `POSTGRES_URL` automatically.
 
-3. **Deploy** – Connect your repo to Vercel; the Next.js app will build and deploy automatically. For a demo or testing, you can deploy as-is, but data will not persist.
+   **Initialize the schema** once when creating a new database:
+   ```bash
+   psql $POSTGRES_URL -f scripts/init-db.sql
+   ```
+   Or run the SQL in `scripts/init-db.sql` via your provider's SQL editor.
+
+3. **Deploy** – Connect your repo to Vercel; the Next.js app will build and deploy automatically.
 
 ---
 

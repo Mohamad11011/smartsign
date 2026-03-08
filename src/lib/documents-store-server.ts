@@ -2,9 +2,7 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const DOCUMENTS_FILE = path.join(DATA_DIR, "documents.json");
+import { isPostgresEnabled, getDb } from "./db";
 
 export type DocumentStatus =
   | "draft"
@@ -40,6 +38,9 @@ interface DocumentsStore {
   documents: StoredDocument[];
 }
 
+const DATA_DIR = path.join(process.cwd(), "data");
+const DOCUMENTS_FILE = path.join(DATA_DIR, "documents.json");
+
 async function ensureDir(dir: string) {
   if (!existsSync(dir)) {
     await mkdir(dir, { recursive: true });
@@ -61,9 +62,51 @@ async function saveStore(store: DocumentsStore) {
   await writeFile(DOCUMENTS_FILE, JSON.stringify(store, null, 2));
 }
 
+function rowToDocument(row: Record<string, unknown>): StoredDocument {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    recipients: row.recipients as string,
+    recipientsDetail: (row.recipients_detail as StoredRecipient[]) ?? undefined,
+    status: row.status as DocumentStatus,
+    signedBy: (row.signed_by as string[]) ?? undefined,
+    reminderCount: row.reminder_count as number | undefined,
+    lastReminderAt: row.last_reminder_at ? new Date(row.last_reminder_at as string).toISOString() : undefined,
+    createdAt: new Date(row.created_at as string).toISOString(),
+    updatedAt: new Date(row.updated_at as string).toISOString(),
+  };
+}
+
 export async function createDocument(
   doc: Omit<StoredDocument, "id" | "createdAt" | "updatedAt">
 ): Promise<StoredDocument> {
+  if (isPostgresEnabled()) {
+    const sql = getDb();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    await sql`
+      INSERT INTO documents (id, name, recipients, recipients_detail, status, signed_by, reminder_count, last_reminder_at, created_at, updated_at)
+      VALUES (
+        ${id},
+        ${doc.name},
+        ${doc.recipients},
+        ${JSON.stringify(doc.recipientsDetail ?? [])},
+        ${doc.status},
+        ${doc.signedBy ?? []},
+        ${doc.reminderCount ?? 0},
+        ${doc.lastReminderAt ?? null},
+        ${now},
+        ${now}
+      )
+    `;
+    return {
+      ...doc,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   const now = new Date().toISOString();
   const stored: StoredDocument = {
     ...doc,
@@ -78,13 +121,29 @@ export async function createDocument(
 }
 
 export async function getDocuments(): Promise<StoredDocument[]> {
+  if (isPostgresEnabled()) {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT * FROM documents ORDER BY created_at DESC
+    `;
+    return rows.map((r) => rowToDocument(r as Record<string, unknown>));
+  }
+
   const store = await loadStore();
   return store.documents;
 }
 
 export async function getDocumentById(id: string): Promise<StoredDocument | null> {
+  if (isPostgresEnabled()) {
+    const sql = getDb();
+    const rows = await sql`SELECT * FROM documents WHERE id = ${id}`;
+    if (rows.length === 0) return null;
+    return rowToDocument(rows[0] as Record<string, unknown>);
+  }
+
   const store = await loadStore();
-  return store.documents.find((d) => d.id === id) ?? null;
+  const found = store.documents.find((d) => d.id === id);
+  return found ?? null;
 }
 
 export async function updateDocument(
@@ -96,6 +155,21 @@ export async function updateDocument(
     >
   >
 ): Promise<StoredDocument | null> {
+  if (isPostgresEnabled()) {
+    const sql = getDb();
+    await sql`
+      UPDATE documents SET
+        status = COALESCE(${updates.status ?? null}, status),
+        recipients = COALESCE(${updates.recipients ?? null}, recipients),
+        recipients_detail = COALESCE(${updates.recipientsDetail ? JSON.stringify(updates.recipientsDetail) : null}, recipients_detail),
+        reminder_count = COALESCE(${updates.reminderCount ?? null}, reminder_count),
+        last_reminder_at = COALESCE(${updates.lastReminderAt ?? null}, last_reminder_at),
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    return getDocumentById(id);
+  }
+
   const store = await loadStore();
   const idx = store.documents.findIndex((d) => d.id === id);
   if (idx < 0) return null;
@@ -118,6 +192,22 @@ export async function updateDocumentStatus(
   status: DocumentStatus,
   metadata?: { signedBy?: string }
 ): Promise<StoredDocument | null> {
+  if (isPostgresEnabled()) {
+    const sql = getDb();
+    const doc = await getDocumentById(id);
+    if (!doc) return null;
+
+    let signedBy = doc.signedBy ?? [];
+    if (metadata?.signedBy) {
+      signedBy = [...signedBy, metadata.signedBy];
+    }
+
+    await sql`
+      UPDATE documents SET status = ${status}, signed_by = ${signedBy}, updated_at = NOW() WHERE id = ${id}
+    `;
+    return getDocumentById(id);
+  }
+
   const store = await loadStore();
   const idx = store.documents.findIndex((d) => d.id === id);
   if (idx < 0) return null;
@@ -144,6 +234,14 @@ export async function updateDocumentStatusByToken(
 }
 
 export async function deleteDocument(id: string): Promise<boolean> {
+  if (isPostgresEnabled()) {
+    const existing = await getDocumentById(id);
+    if (!existing) return false;
+    const sql = getDb();
+    await sql`DELETE FROM documents WHERE id = ${id}`;
+    return true;
+  }
+
   const store = await loadStore();
   const filtered = store.documents.filter((d) => d.id !== id);
   if (filtered.length === store.documents.length) return false;
