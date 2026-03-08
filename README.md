@@ -109,6 +109,7 @@ npm install
 | `NEXTAUTH_SECRET` | NextAuth secret |
 | `NEXT_PUBLIC_APP_URL` | Base URL (e.g. `http://localhost:3000`) |
 | `POSTGRES_URL` | PostgreSQL connection string (optional; omit for local JSON storage) |
+| `INIT_DB_SECRET` | Secret for one-time DB init (optional; used by `/api/init-db`) |
 
 ### Run
 
@@ -150,11 +151,9 @@ SmartSign uses simple username/password authentication for **demo purposes only*
 
    **Recommended:** Add [Neon](https://neon.tech) or [Vercel Postgres](https://vercel.com/storage/postgres) from the Vercel Marketplace. This sets `POSTGRES_URL` automatically.
 
-   **Initialize the schema** once when creating a new database:
-   ```bash
-   psql $POSTGRES_URL -f scripts/init-db.sql
-   ```
-   Or run the SQL in `scripts/init-db.sql` via your provider's SQL editor.
+   **Schema is initialized automatically** on each deploy: the build runs `scripts/run-init-db.mjs` after `next build`, which executes `scripts/init-db.sql` when `POSTGRES_URL` is set. Uses `CREATE IF NOT EXISTS`, so it's safe to run every time.
+
+   **Manual fallback** (if needed): `psql $POSTGRES_URL -f scripts/init-db.sql`, or call `POST /api/init-db` with header `x-init-db-secret: <INIT_DB_SECRET>`.
 
 3. **Deploy** – Connect your repo to Vercel; the Next.js app will build and deploy automatically.
 
