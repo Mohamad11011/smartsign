@@ -110,9 +110,7 @@ function LoginForm() {
             >
               {loading ? "Signing in…" : "Sign in"}
             </Button>
-            <p className="text-xs text-accent-muted text-center">
-              Demo: admin / admin123
-            </p>
+            
           </CardFooter>
         </form>
       </Card>
